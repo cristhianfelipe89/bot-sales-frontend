@@ -1,81 +1,111 @@
+// src/pages/Products.jsx
 import React, { useEffect, useState } from "react";
 import api from "../services/api";
+import ProductForm from "../components/ProductForm";
+import ProductTable from "../components/ProductTable";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 export default function Products() {
     const [products, setProducts] = useState([]);
-    const [form, setForm] = useState({ name: "", description: "", category: "General", price: 0, stock: 0 });
-    const [filters, setFilters] = useState({ category: "", search: "", sort: "" });
+    const [categories, setCategories] = useState([]);
 
-    const load = async () => {
+    const [form, setForm] = useState({
+        name: "",
+        description: "",
+        category: "",
+        price: 0,
+        stock: 0
+    });
+
+    const [editingId, setEditingId] = useState(null);
+
+    const loadProducts = async () => {
         try {
-            const q = new URLSearchParams();
-            if (filters.category) q.set("category", filters.category);
-            if (filters.search) q.set("search", filters.search);
-            if (filters.sort) q.set("sort", filters.sort);
-            const res = await api.get(`/products?${q.toString()}`);
+            const res = await api.get("/products");
             setProducts(res.data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error("Error loading products", err);
+        }
     };
 
-    useEffect(() => { load(); }, []);
-
-    const handleCreate = async (e) => {
-        e.preventDefault();
+    const loadCategories = async () => {
         try {
-            await api.post("/products", form);
-            setForm({ name: "", description: "", category: "General", price: 0, stock: 0 });
-            load();
-        } catch (err) { alert(err.response?.data?.msg || "Error crear producto"); }
+            const res = await api.get("/categories");
+            setCategories(res.data);
+        } catch (err) {
+            console.error("Error loading categories", err);
+        }
     };
 
-    const applyFilters = async () => {
-        await load();
+    useEffect(() => {
+        loadProducts();
+        loadCategories();
+    }, []);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        // Validación adicional
+        if (!form.category || form.category === "") {
+            alert("Debes seleccionar una categoría válida");
+            return;
+        }
+
+        try {
+            if (editingId) {
+                await api.put(`/products/${editingId}`, form);
+            } else {
+                await api.post("/products", form);
+            }
+
+            setForm({
+                name: "",
+                description: "",
+                category: "",
+                price: 0,
+                stock: 0
+            });
+            setEditingId(null);
+            loadProducts();
+        } catch (err) {
+            alert(err.response?.data?.msg || "Error al guardar producto");
+        }
+    };
+
+    const exportToExcel = () => {
+        const worksheet = XLSX.utils.json_to_sheet(products);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
+
+        const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
+
+        saveAs(blob, "productos.xlsx");
     };
 
     return (
         <div>
             <h3>Productos</h3>
-            <div className="card p-3 mb-3">
-                <h5>Crear producto</h5>
-                <form onSubmit={handleCreate}>
-                    <input className="form-control my-1" placeholder="Nombre" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-                    <input className="form-control my-1" placeholder="Categoría" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
-                    <input className="form-control my-1" placeholder="Precio" type="number" value={form.price} onChange={e => setForm({ ...form, price: Number(e.target.value) })} />
-                    <input className="form-control my-1" placeholder="Stock" type="number" value={form.stock} onChange={e => setForm({ ...form, stock: Number(e.target.value) })} />
-                    <textarea className="form-control my-1" placeholder="Descripción" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                    <button className="btn btn-success my-1">Crear</button>
-                </form>
+
+            <div className="card p-3 mb-4">
+                <h5>{editingId ? "Editar producto" : "Crear producto"}</h5>
+                <ProductForm
+                    form={form}
+                    setForm={setForm}
+                    onSubmit={handleSubmit}
+                    editing={!!editingId}
+                    categories={categories}
+                />
             </div>
 
-            <div className="card p-3 mb-3">
-                <h5>Filtros</h5>
-                <div className="row">
-                    <div className="col-md-3"><input className="form-control" placeholder="Categoría" value={filters.category} onChange={e => setFilters({ ...filters, category: e.target.value })} /></div>
-                    <div className="col-md-3"><input className="form-control" placeholder="Buscar" value={filters.search} onChange={e => setFilters({ ...filters, search: e.target.value })} /></div>
-                    <div className="col-md-3">
-                        <select className="form-select" value={filters.sort} onChange={e => setFilters({ ...filters, sort: e.target.value })}>
-                            <option value="">Orden</option>
-                            <option value="price_asc">Precio ↑</option>
-                            <option value="price_desc">Precio ↓</option>
-                            <option value="name_asc">Nombre A-Z</option>
-                            <option value="name_desc">Nombre Z-A</option>
-                        </select>
-                    </div>
-                    <div className="col-md-3"><button className="btn btn-primary" onClick={applyFilters}>Aplicar</button></div>
-                </div>
-            </div>
+            <button className="btn btn-success mb-3" onClick={exportToExcel}>
+                Exportar a Excel
+            </button>
 
-            <div className="row">
-                {products.map(p => (
-                    <div key={p._id} className="col-md-3">
-                        <div className="card mb-3 p-2">
-                            <h6>{p.name}</h6>
-                            <p className="small">{p.category}</p>
-                            <p>${p.price} — stock: {p.stock}</p>
-                            <p className="small">{p.description}</p>
-                        </div>
-                    </div>
-                ))}
+            <div className="card p-3">
+                <h5>Inventario</h5>
+                <ProductTable data={products} />
             </div>
         </div>
     );

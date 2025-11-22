@@ -1,34 +1,46 @@
-import React from "react";
-import { Routes, Route, Link } from "react-router-dom";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Sales from "./pages/Sales";
+import { Routes, Route } from "react-router-dom";
+
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Products from "./pages/Products.jsx";
+import Sales from "./pages/Sales.jsx";
+import Conversations from "./pages/Conversations.jsx";
+import Users from "./pages/Users.jsx";
+import Categories from "./pages/Categories.jsx";   // ⬅️ IMPORTANTE
+
+import NavBar from "./components/NavBar.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import Unauthorized from "./pages/Unauthorized.jsx";
+import UserProfile from "./pages/UserProfile.jsx";
 
 export default function App() {
     return (
-        <div>
-            <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
-                <div className="container">
-                    <Link to="/" className="navbar-brand">BotSales Admin</Link>
-                    <div className="collapse navbar-collapse">
-                        <ul className="navbar-nav me-auto">
-                            <li className="nav-item"><Link to="/dashboard" className="nav-link">Dashboard</Link></li>
-                            <li className="nav-item"><Link to="/products" className="nav-link">Productos</Link></li>
-                            <li className="nav-item"><Link to="/sales" className="nav-link">Ventas</Link></li>
-                        </ul>
-                    </div>
-                </div>
-            </nav>
+        <>
+            <NavBar />
 
             <div className="container mt-4">
                 <Routes>
+                    {/* Publicas */}
                     <Route path="/" element={<Login />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/products" element={<Products />} />
-                    <Route path="/sales" element={<Sales />} />
+                    <Route path="/register" element={<Register />} />
+
+                    {/* Admin protegidas */}
+                    <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                        <Route path="/users" element={<Users />} />
+                        <Route path="/users/:id/profile" element={<UserProfile />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/products" element={<Products />} />
+                        <Route path="/categories" element={<Categories />} /> {/* ⬅️ AGREGADA */}
+                        <Route path="/sales" element={<Sales />} />
+                        <Route path="/conversations" element={<Conversations />} />
+                        <Route path="/users" element={<Users />} />
+                    </Route>
+
+                    <Route path="/unauthorized" element={<Unauthorized />} />
                 </Routes>
             </div>
-        </div>
+        </>
     );
 }
+

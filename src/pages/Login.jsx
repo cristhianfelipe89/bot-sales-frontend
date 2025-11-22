@@ -1,33 +1,37 @@
-import React, { useState } from "react";
-import api from "../services/api";
-import { useNavigate } from "react-router-dom";
+// src/pages/Login.jsx
+import { useState } from "react";
+import api from "../services/api.js";
+import { useNavigate, Link } from "react-router-dom";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext.jsx";
+import { alertError } from "../utils/alert.js";
 
 export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const nav = useNavigate();
+    const [form, setForm] = useState({ email: "", password: "" });
+    const { handleLogin } = useContext(AuthContext);
+    const navigate = useNavigate();
 
     const submit = async (e) => {
         e.preventDefault();
         try {
-            const res = await api.post("/auth/login", { email, password });
-            localStorage.setItem("token", res.data.token);
-            nav("/dashboard");
+            const res = await api.post("/auth/login", { ...form });
+            handleLogin(res.data.user, res.data.token);
+            navigate("/dashboard");
         } catch (err) {
-            alert(err.response?.data?.msg || "Error al iniciar sesión");
+            console.error(err);
+            alertError(err.response?.data?.msg || "Login failed");
         }
     };
 
     return (
-        <div className="row justify-content-center">
-            <div className="col-md-5">
-                <h3>Admin Login</h3>
-                <form onSubmit={submit}>
-                    <input className="form-control my-2" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-                    <input className="form-control my-2" placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-                    <button className="btn btn-primary">Entrar</button>
-                </form>
-            </div>
+        <div className="col-md-4 offset-md-4 mt-5 p-4 border rounded shadow">
+            <h3>Iniciar sesión (Admin web)</h3>
+            <form onSubmit={submit}>
+                <input className="form-control mb-2" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
+                <input type="password" className="form-control mb-2" placeholder="Contraseña" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+                <button className="btn btn-primary w-100">Ingresar</button>
+            </form>
+            <div className="mt-2 text-center"><Link to="/register">Registrar Admin</Link></div>
         </div>
     );
 }
