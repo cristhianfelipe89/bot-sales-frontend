@@ -1,9 +1,9 @@
-// src/pages/UserProfile.jsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getUserProfile, getUserSales } from "../services/userService";
+import { getUserProfile, getUserSales, getUserLogs } from "../services/userService";
 import { Bar } from "react-chartjs-2";
 import formatCurrency from "../utils/formatCurrency";
+import { formatDateCol } from "../utils/formatDate"; // Importar utilidad
 
 export default function UserProfile() {
     const { id } = useParams();
@@ -11,151 +11,103 @@ export default function UserProfile() {
     const [loading, setLoading] = useState(true);
     const [salesPage, setSalesPage] = useState(1);
     const [salesData, setSalesData] = useState({ sales: [], page: 1, total: 0, limit: 20 });
-
-    const loadProfile = async () => {
-        setLoading(true);
-        try {
-            const res = await getUserProfile(id);
-            setProfile(res);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadSales = async (page = 1) => {
-        try {
-            const res = await getUserSales(id, { page, limit: 10 });
-            setSalesData(res);
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    const [logs, setLogs] = useState([]);
 
     useEffect(() => {
-        loadProfile();
-        loadSales(salesPage);
-        // eslint-disable-next-line
+        const fetchAll = async () => {
+            setLoading(true);
+            try {
+                const p = await getUserProfile(id);
+                setProfile(p);
+                const l = await getUserLogs(id);
+                setLogs(l);
+            } catch (e) { console.error(e); }
+            finally { setLoading(false); }
+        };
+        fetchAll();
     }, [id]);
 
-    useEffect(() => { loadSales(salesPage); }, [salesPage]);
+    useEffect(() => {
+        getUserSales(id, { page: salesPage, limit: 10 }).then(setSalesData).catch(console.error);
+    }, [id, salesPage]);
 
-    if (loading || !profile) return <p>Cargando perfil...</p>;
+    if (loading || !profile) return <p className="p-4">Cargando...</p>;
 
-    const { user, stats, recentSales, byMonth } = profile;
-
-    // prepare chart data (last 12 months)
-    const labels = [];
-    const values = [];
-    if (byMonth && byMonth.length > 0) {
-        byMonth.forEach(b => {
-            labels.push(`${b._id.month}/${b._id.year}`);
-            values.push(b.total);
-        });
-    }
-
-    const chartData = {
-        labels,
-        datasets: [
-            {
-                label: "Gasto por periodo",
-                data: values,
-                // colors will be default
-            }
-        ]
-    };
+    const { user, stats, byMonth } = profile;
+    const labels = byMonth?.map(b => `${b._id.month}/${b._id.year}`) || [];
+    const values = byMonth?.map(b => b.total) || [];
+    const chartData = { labels, datasets: [{ label: "Gasto", data: values, backgroundColor: '#0d6efd' }] };
 
     return (
         <div>
             <h3>Perfil de usuario</h3>
-
             <div className="card p-3 mb-3 shadow-sm">
                 <div className="row align-items-center">
-                    <div className="col-md-2">
-                        <img src={user.avatar || "https://via.placeholder.com/120"} alt="avatar" className="img-fluid rounded" />
+                    <div className="col-md-2 text-center">
+                        <img src={user.avatar || "https://via.placeholder.com/120"} alt="av" className="img-fluid rounded-circle" style={{maxHeight:100}} />
                     </div>
                     <div className="col-md-8">
                         <h4>{user.name}</h4>
                         <p className="mb-1"><strong>Email:</strong> {user.email || "—"}</p>
-                        <p className="mb-1"><strong>Rol:</strong> {user.role}</p>
-                        <p className="mb-1"><strong>Estado:</strong> {user.status}</p>
-                        <p className="mb-1"><strong>Registrado:</strong> {new Date(user.createdAt).toLocaleString()}</p>
-                        <p className="mb-1"><strong>Último login:</strong> {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "—"}</p>
+                        <p className="mb-1"><strong>Registro:</strong> {formatDateCol(user.createdAt)}</p>
+                        <p className="mb-1"><strong>Último login:</strong> {formatDateCol(user.lastLogin)}</p>
                     </div>
                     <div className="col-md-2 text-end">
-                        <div className="mb-2"><strong>Total compras</strong><div>{stats.totalCompras || 0}</div></div>
-                        <div><strong>Total gastado</strong><div>{formatCurrency(stats.totalGastado || 0)}</div></div>
+                        <div><strong>Total Gastado</strong><h3>{formatCurrency(stats.totalGastado || 0)}</h3></div>
                     </div>
                 </div>
             </div>
 
             <div className="row g-3">
                 <div className="col-md-6">
-                    <div className="card p-3 shadow-sm">
-                        <h5>Gasto por periodo</h5>
-                        {labels.length === 0 ? <p className="text-muted">No hay datos para mostrar</p> : <Bar data={chartData} />}
+                    <div className="card p-3 shadow-sm h-100">
+                        <h5>Gasto histórico</h5>
+                        {labels.length === 0 ? <p className="text-muted">Sin datos</p> : <Bar data={chartData} />}
                     </div>
                 </div>
-
                 <div className="col-md-6">
-                    <div className="card p-3 shadow-sm">
-                        <h5>Compras recientes</h5>
-                        {recentSales.length === 0 ? <p className="text-muted">Sin compras</p> : (
-                            <ul className="list-group" style={{ maxHeight: 360, overflowY: "auto" }}>
-                                {recentSales.map(s => (
-                                    <li key={s._id} className="list-group-item">
-                                        <div className="d-flex justify-content-between">
-                                            <div>
-                                                <strong>{new Date(s.createdAt).toLocaleString()}</strong>
-                                                <div className="small text-muted">Items: {s.items.length}</div>
-                                            </div>
-                                            <div>{formatCurrency(s.total)}</div>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
+                    <div className="card p-3 shadow-sm h-100">
+                        <h5>Logs de Actividad</h5>
+                        {logs.length === 0 ? <p>Sin registros.</p> : (
+                            <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                                <table className="table table-sm table-hover small">
+                                    <thead><tr><th>Fecha</th><th>Acción</th><th>Detalle</th></tr></thead>
+                                    <tbody>
+                                        {logs.map(log => (
+                                            <tr key={log._id}>
+                                                <td>{formatDateCol(log.createdAt)}</td>
+                                                <td><span className="badge bg-light text-dark border">{log.action}</span></td>
+                                                <td>{log.details}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* paginated sales table */}
             <div className="card p-3 shadow-sm mt-3">
-                <h5>Historial de ventas (paginado)</h5>
-                {salesData.sales.length === 0 ? <p className="text-muted">No hay ventas en esta página.</p> : (
-                    <div className="table-responsive">
-                        <table className="table table-sm table-striped">
-                            <thead className="table-dark">
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Items</th>
-                                    <th>Total</th>
+                <h5>Compras</h5>
+                <div className="table-responsive">
+                    <table className="table table-sm table-striped">
+                        <thead><tr><th>Fecha</th><th>Items</th><th>Total</th></tr></thead>
+                        <tbody>
+                            {salesData.sales.map(s => (
+                                <tr key={s._id}>
+                                    <td>{formatDateCol(s.createdAt)}</td>
+                                    <td>{s.items.map(i => `${i.quantity}x ${i.productId?.name || '?'}`).join(', ')}</td>
+                                    <td>{formatCurrency(s.total)}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {salesData.sales.map(s => (
-                                    <tr key={s._id}>
-                                        <td>{new Date(s.createdAt).toLocaleString()}</td>
-                                        <td>
-                                            <ul className="mb-0">
-                                                {s.items.map(it => <li key={it._id}>{it.productId?.name || it.productId} x {it.quantity}</li>)}
-                                            </ul>
-                                        </td>
-                                        <td>{formatCurrency(s.total)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                <div className="d-flex justify-content-between align-items-center mt-2">
-                    <div>Page {salesData.page} / {Math.ceil(salesData.total / salesData.limit)}</div>
-                    <div>
-                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => setSalesPage(p => Math.max(1, p - 1))}>Anterior</button>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => setSalesPage(p => p + 1)}>Siguiente</button>
-                    </div>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {/* Paginación simple */}
+                <div className="mt-2">
+                    <button className="btn btn-sm btn-secondary me-2" onClick={() => setSalesPage(p=>Math.max(1,p-1))} disabled={salesPage<=1}>Prev</button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setSalesPage(p=>p+1)} disabled={salesData.sales.length < salesData.limit}>Next</button>
                 </div>
             </div>
         </div>
