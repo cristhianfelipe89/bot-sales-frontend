@@ -19,3 +19,4 @@ build/
 .vscode/
 .idea/
 *.sublime-workspace
+frontend.txt
